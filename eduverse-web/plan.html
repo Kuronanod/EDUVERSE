@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>แผนการอ่านสอบ</title>
+<link rel="stylesheet" href="plan.css">
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+ 
+<nav class="navbar">
+  <div class="nav-inner">
+    <span class="nav-brand">EDUVERSE</span>
+    <div class="nav-links">
+      <a href="home.html" class="nav-link">หน้าหลัก</a>
+      <a href="chatbot.html" class="nav-link">แชทบอท</a>
+      <a href="plan.html" class="nav-link nav-active">วางแผนการอ่าน</a>
+    </div>
+  </div>
+</nav>
+ 
+<div class="app">
+  <h1>แผนการอ่านสอบ</h1>
+  <p class="subtitle" id="today-date"></p>
+ 
+  <div class="stats-row" id="stats-row"></div>
+ 
+  <div class="tab-row">
+    <button class="tab active" onclick="switchTab('plan')">แผนการอ่าน</button>
+    <button class="tab" onclick="switchTab('subjects')">วิชาเรียน</button>
+  </div>
+ 
+  <div id="tab-plan">
+    <div class="section-label">เพิ่มรายการอ่าน</div>
+    <div class="add-form">
+      <input type="text" id="task-title" placeholder="หัวข้อที่ต้องอ่าน" style="flex:2;min-width:130px;">
+      <select id="task-subject" style="min-width:100px;"></select>
+      <input type="date" id="task-date" style="min-width:130px;">
+      <input type="number" id="task-hours" placeholder="ชม." min="0.5" step="0.5" style="width:70px;">
+      <button onclick="addTask()">+ เพิ่ม</button>
+    </div>
+    <div class="card">
+      <div id="task-list"></div>
+    </div>
+  </div>
+ 
+  <!-- Tab: Subjects -->
+  <div id="tab-subjects" style="display:none;">
+    <div class="section-label">เพิ่มวิชาเรียน</div>
+    <div class="add-form">
+      <input type="text" id="subj-name" placeholder="ชื่อวิชา" style="flex:1;min-width:120px;">
+      <input type="date" id="subj-exam" title="วันสอบ">
+      <select id="subj-color">
+        <option value="#378ADD">น้ำเงิน</option>
+        <option value="#1D9E75">เขียว</option>
+        <option value="#D4537E">ชมพู</option>
+        <option value="#EF9F27">เหลือง</option>
+        <option value="#7F77DD">ม่วง</option>
+        <option value="#D85A30">ส้ม</option>
+      </select>
+      <button onclick="addSubject()">+ เพิ่มวิชา</button>
+    </div>
+    <div class="card">
+      <div id="subject-list"></div>
+    </div>
+  </div>
+</div>
+ 
+<script>
+let subjects = [];
+let tasks = [];
+ 
+const lightColor = {
+  '#378ADD':'#ddeefb', '#1D9E75':'#d0f0e5', '#D4537E':'#fad6e4',
+  '#EF9F27':'#fde8bc', '#7F77DD':'#e4e2f9', '#D85A30':'#fad8cc'
+};
+ 
+document.getElementById('today-date').textContent =
+  new Date().toLocaleDateString('th-TH', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+document.getElementById('task-date').value = new Date().toISOString().slice(0,10);
+ 
+function switchTab(t) {
+  document.getElementById('tab-plan').style.display = t === 'plan' ? '' : 'none';
+  document.getElementById('tab-subjects').style.display = t === 'subjects' ? '' : 'none';
+  document.querySelectorAll('.tab').forEach((b, i) =>
+    b.classList.toggle('active', (t==='plan'&&i===0)||(t==='subjects'&&i===1)));
+}
+ 
+function renderStats() {
+  const done  = tasks.filter(t => t.done).length;
+  const total = tasks.length;
+  const hrs   = tasks.filter(t => t.done).reduce((a, b) => a + b.hours, 0);
+  document.getElementById('stats-row').innerHTML = `
+    <div class="stat-card"><div class="stat-label">รายการทั้งหมด</div><div class="stat-value">${total}</div><div class="stat-sub">รายการ</div></div>
+    <div class="stat-card"><div class="stat-label">เสร็จแล้ว</div><div class="stat-value">${done}</div><div class="stat-sub">จาก ${total} รายการ</div></div>
+    <div class="stat-card"><div class="stat-label">ชั่วโมงที่อ่าน</div><div class="stat-value">${hrs}</div><div class="stat-sub">ชั่วโมง</div></div>`;
+}
+ 
+function renderSubjects() {
+  const sel = document.getElementById('task-subject');
+  const cur = sel.value;
+  sel.innerHTML = subjects.map(s => `<option value="${s.id}">${s.name}</option>`).join('');
+  if (cur) sel.value = cur;
+ 
+  const el = document.getElementById('subject-list');
+  if (!subjects.length) { el.innerHTML = '<div class="empty">ยังไม่มีวิชา เพิ่มวิชาด้านบนได้เลย</div>'; return; }
+  el.innerHTML = subjects.map(s => {
+    const sDone  = tasks.filter(t => t.subjectId === s.id && t.done).length;
+    const sTotal = tasks.filter(t => t.subjectId === s.id).length;
+    const pct    = sTotal ? Math.round(sDone / sTotal * 100) : 0;
+    const days   = s.examDate ? Math.ceil((new Date(s.examDate) - new Date()) / 86400000) : null;
+    return `<div class="subject-row">
+      <div class="dot" style="background:${s.color}"></div>
+      <div class="subject-name">${s.name}</div>
+      ${s.examDate ? `<span class="exam-badge">${days >= 0 ? `อีก ${days} วัน` : 'สอบแล้ว'}</span>` : ''}
+      <div class="progress-wrap">
+        <div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${s.color}"></div></div>
+        <div class="progress-pct">${pct}% เสร็จ</div>
+      </div>
+      <button class="btn-sm btn-del" onclick="delSubject(${s.id})">ลบ</button>
+    </div>`;
+  }).join('');
+}
+ 
+function renderTasks() {
+  const el = document.getElementById('task-list');
+  const sorted = [...tasks].sort((a, b) => a.date.localeCompare(b.date));
+  if (!sorted.length) { el.innerHTML = '<div class="empty">ยังไม่มีรายการ เพิ่มรายการอ่านด้านบนได้เลย</div>'; return; }
+  el.innerHTML = sorted.map(t => {
+    const s  = subjects.find(x => x.id === t.subjectId);
+    const bg = s ? (lightColor[s.color] || '#eee') : '#eee';
+    const fg = s ? s.color : '#888';
+    const d  = new Date(t.date).toLocaleDateString('th-TH', { month: 'short', day: 'numeric' });
+    return `<div class="plan-row">
+      <div class="check-box ${t.done ? 'done' : ''}" onclick="toggleTask(${t.id})"></div>
+      <div style="flex:1">
+        <div class="plan-title ${t.done ? 'crossed' : ''}">${t.title}</div>
+        ${s ? `<span class="plan-tag" style="background:${bg};color:${fg}">${s.name}</span>` : ''}
+      </div>
+      <div class="plan-right">
+        <span class="plan-date">${d}</span>
+        <span class="plan-hours">${t.hours} ชม.</span>
+        <button class="btn-sm btn-del" onclick="delTask(${t.id})">ลบ</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+ 
+function addSubject() {
+  const name  = document.getElementById('subj-name').value.trim();
+  const exam  = document.getElementById('subj-exam').value;
+  const color = document.getElementById('subj-color').value;
+  if (!name) return;
+  subjects.push({ id: Date.now(), name, examDate: exam, color });
+  document.getElementById('subj-name').value = '';
+  document.getElementById('subj-exam').value = '';
+  render();
+}
+ 
+function delSubject(id) {
+  subjects = subjects.filter(s => s.id !== id);
+  tasks    = tasks.filter(t => t.subjectId !== id);
+  render();
+}
+ 
+function addTask() {
+  const title     = document.getElementById('task-title').value.trim();
+  const subjectId = parseInt(document.getElementById('task-subject').value);
+  const date      = document.getElementById('task-date').value;
+  const hours     = parseFloat(document.getElementById('task-hours').value) || 1;
+  if (!title || !date) return;
+  tasks.push({ id: Date.now(), title, subjectId, date, hours, done: false });
+  document.getElementById('task-title').value = '';
+  render();
+}
+ 
+function delTask(id) {
+  tasks = tasks.filter(t => t.id !== id);
+  render();
+}
+ 
+function toggleTask(id) {
+  const t = tasks.find(x => x.id === id);
+  if (t) t.done = !t.done;
+  render();
+}
+ 
+function render() {
+  renderStats();
+  renderSubjects();
+  renderTasks();
+}
+ 
+render();
+</script>
+</body>
+</html>
+ 
